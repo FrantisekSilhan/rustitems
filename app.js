@@ -271,7 +271,7 @@ app.get("/inventories", (req, res) => {
                   .sort((a, b) => data.itemCounts[b].amount - data.itemCounts[a].amount)
                   .map(steamId => \`
                   <tr>
-                    <td><a href="https://steamcommunity.com/profiles/\${steamId}/">\${steamId}</a></td>
+                    <td><a href="https://steamcommunity.com/profiles/\${steamId}/" target="_blank">\${steamId}</a></td>
                     <td>\${data.itemCounts[steamId].name}</td>
                     <td>\${data.itemCounts[steamId].amount}</td>
                     <td>$\${data.itemCounts[steamId].USD}</td>
