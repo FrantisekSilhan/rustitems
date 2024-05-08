@@ -250,7 +250,7 @@ app.get("/api/inventory", async (req, res) => {
         `https://steamcommunity.com/inventory/${row.steamId}/252490/2?l=english&count=500`
       );
 
-      if (!result.data && !result.data["assets"]) {
+      if (!result.data && result.data.success === false) {
 
         itemCounts[row.steamId] = await new Promise((resolve, reject) => {
           db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [row.steamId, itemId], (err, row) => {
