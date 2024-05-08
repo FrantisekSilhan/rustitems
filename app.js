@@ -241,6 +241,34 @@ app.get("/api/inventory", async (req, res) => {
           }
         });
       });
+    } else {
+      selectDataFromDb = true;
+    }
+
+    if (selectDataFromDb) {
+      prices[itemId] = await new Promise((resolve, reject) => {
+        db.get("SELECT * FROM prices WHERE itemId = ?", [itemId], (err, row) => {
+          if (err) reject(err);
+
+          if (row) {
+            resolve(row.price);
+          } else {
+            resolve(0);
+          }
+        });
+      });
+
+      steamMarketSupplies[itemId] = await new Promise((resolve, reject) => {
+        db.get("SELECT * FROM steamMarketSupplies WHERE itemId = ?", [itemId], (err, row) => {
+          if (err) reject(err);
+
+          if (row) {
+            resolve(row.marketSupply);
+          } else {
+            resolve(0);
+          }
+        });
+      });
     }
 
     const rows = await new Promise((resolve, reject) => {
