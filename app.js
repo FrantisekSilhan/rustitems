@@ -5,7 +5,46 @@ const cheerio = require("cheerio");
 require("dotenv").config();
 
 db.serialize(() => {
-  db.run("CREATE TABLE IF NOT EXISTS steamUsers (steamId TEXT, steamName TEXT)");
+  db.run(`
+    CREATE TABLE IF NOT EXISTS steamUsers (
+      steamId TEXT PRIMARY KEY,
+      steamName TEXT
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lastPricesCheck (
+      itemId TEXT PRIMARY KEY,
+      lastCheck INTEGER
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS prices (
+      itemId TEXT PRIMARY KEY,
+      price INTEGER
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS steamMarketSupplies (
+      itemId TEXT PRIMARY KEY,
+      marketSupply INTEGER
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS itemCounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      steamId TEXT,
+      itemId TEXT,
+      name TEXT,
+      amount INTEGER,
+      USD REAL,
+      USDNoFee REAL,
+      lastUpdated INTEGER DEFAULT 0
+    )
+  `);
 });
 
 const app = express();
@@ -160,7 +199,14 @@ app.get("/api/inventory", async (req, res) => {
 
       if (lastPricesCheck[itemId] !== 0) {
         lastPricesCheck[itemId] = Date.now();
+        db.run("UPDATE lastPricesCheck SET lastCheck = ? WHERE itemId = ?", [lastPricesCheck[itemId], itemId]);
       }
+
+      if (prices[itemId] !== 0) {
+        db.run("INSERT OR REPLACE INTO prices (itemId, price) VALUES (?, ?)", [itemId, prices[itemId]]);
+      }
+
+      db.run("INSERT OR REPLACE INTO steamMarketSupplies (itemId, marketSupply) VALUES (?, ?)", [itemId, steamMarketSupplies[itemId]]);
     }
 
     const rows = await new Promise((resolve, reject) => {
@@ -170,31 +216,88 @@ app.get("/api/inventory", async (req, res) => {
       });
     });
 
+    const itemCountsDb = await new Promise((resolve, reject) => {
+      db.all("SELECT steamId, lastUpdated FROM itemCounts where itemId = ?", [itemId], (err, rows) => {
+        if (err) reject(err);
+        resolve(rows);
+      });
+    });
+
     for (const row of rows) {
-      const { data } = await axios.get(
+      const steamName = row.steamName.replace(/bandit.camp/gi, "").trim();
+      if (itemCountsDb.some(itemCount => itemCount.steamId === row.steamId && Date.now() - itemCount.lastUpdated < 60000)) {
+        itemCounts[row.steamId] = await new Promise((resolve, reject) => {
+          db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [row.steamId, itemId], (err, row) => {
+            if (err) reject({
+              name: steamName,
+              amount: 0,
+              USD: 0,
+              USDNoFee: 0
+            });
+
+            resolve({
+              name: row.name,
+              amount: row.amount,
+              USD: row.USD,
+              USDNoFee: row.USDNoFee
+            });
+          });
+        });
+        continue;
+      }
+
+      const result = await axios.get(
         `https://steamcommunity.com/inventory/${row.steamId}/252490/2?l=english&count=500`
       );
 
-      if (!data["assets"]) {
-        itemCounts[row.steamId] = {
-          name: row.steamName.replace(/bandit.camp/gi, "").trim(),
-          amount: 0,
-          USD: 0,
-          USDNoFee: 0
-        };
+      if (!result.data && !result.data["assets"]) {
+
+        itemCounts[row.steamId] = await new Promise((resolve, reject) => {
+          db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [row.steamId, itemId], (err, row) => {
+            if (err) reject({
+              name: steamName,
+              amount: 0,
+              USD: 0,
+              USDNoFee: 0
+            });
+
+            resolve({
+              name: steamName,
+              amount: row.amount,
+              USD: row.USD,
+              USDNoFee: row.USDNoFee
+            });
+          });
+        
+        });
         continue;
       };
+
+      const data = result.data;
 
       const amount = data["assets"].filter((item) => item.classid === itemId).length;
 
       const USDNoFee = Math.round(((prices[itemId] * amount) / 1.15)+1) / 100;
       
       itemCounts[row.steamId] = {
-        name: row.steamName.replace(/bandit.camp/gi, "").trim(),
+        name: steamName,
         amount: amount,
         USD: (prices[itemId] * amount) / 100,
         USDNoFee: USDNoFee === 0.01 ? 0 : USDNoFee
       };
+
+      const usersItems = await new Promise((resolve, reject) => {
+        db.get("SELECT * FROM itemCounts WHERE steamId = ? AND itemId = ?", [row.steamId, itemId], (err, row) => {
+          if (err) reject(err);
+          resolve(row);
+        });
+      });
+
+      if (usersItems) {
+        db.run("UPDATE itemCounts SET amount = ?, USD = ?, USDNoFee = ?, lastUpdated = ? WHERE id = ?",
+          [itemCounts[row.steamId].amount, itemCounts[row.steamId].USD, itemCounts[row.steamId].USDNoFee, Date.now(), usersItems.id]
+        );
+      }
     }
 
     const totalBanditsAmount = Object.values(itemCounts).reduce((acc, curr) => acc + curr.amount, 0);
@@ -212,6 +315,12 @@ app.get("/api/inventory", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+
+    if (error === "AxiosError: Request failed with status code 429") {
+      res.status(429).json({ error: "Steam returned 'success': false" });
+      return;
+    }
+
     require("fs").appendFileSync("error.log", error + "\n");
     res.status(500).json({ error: "Error fetching inventories" });
   }
@@ -246,7 +355,7 @@ app.get("/inventories", (req, res) => {
           const response = await fetch("/api/inventory?item=" + item);
   
           if (!response.ok) {
-            alert("Error fetching data");
+            alert(response.statusText);
           }
   
           const data = await response.json();
@@ -282,7 +391,7 @@ app.get("/inventories", (req, res) => {
             </table>
           \`;
         } catch {
-          alert("Error fetching data");
+          // Handle error
         }
       }
     </script>
@@ -299,3 +408,35 @@ app.get("/inventories", (req, res) => {
 app.listen(6976, () => {
   console.log("Server is running on port 6976");
 });
+
+const start = async () => {
+  lastPricesCheck = await new Promise((resolve, reject) => {
+    db.all("SELECT * FROM lastPricesCheck", (err, rows) => {
+      if (err) reject(err);
+
+      resolve(rows.forEach(row => {
+        lastPricesCheck[row.itemId] = row.lastCheck;
+      }));
+    });
+  });
+
+  prices = await new Promise((resolve, reject) => {
+    db.all("SELECT * FROM prices", (err, rows) => {
+      if (err) reject(err);
+
+      resolve(rows.forEach(row => {
+        prices[row.itemId] = row.price;
+      }));
+    });
+  });
+
+  steamMarketSupplies = await new Promise((resolve, reject) => {
+    db.all("SELECT * FROM steamMarketSupplies", (err, rows) => {
+      if (err) reject(err);
+
+      resolve(rows.forEach(row => {
+        steamMarketSupplies[row.itemId] = row.marketSupply;
+      }));
+    });
+  });
+}
