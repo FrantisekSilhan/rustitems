@@ -186,12 +186,14 @@ app.get("/api/inventory", async (req, res) => {
       };
 
       const amount = data["assets"].filter((item) => item.classid === itemId).length;
+
+      const USDNoFee = Math.round(((prices[itemId] * amount) / 1.15)+1) / 100;
       
       itemCounts[row.steamId] = {
         name: row.steamName.replace(/bandit.camp/gi, "").trim(),
         amount: amount,
         USD: (prices[itemId] * amount) / 100,
-        USDNoFee: Math.round(((prices[itemId] * amount) / 1.15)+1) / 100
+        USDNoFee: USDNoFee === 0.01 ? 0 : USDNoFee
       };
     }
 
@@ -252,7 +254,7 @@ app.get("/inventories", (req, res) => {
           document.getElementById("data").innerHTML = \`
             <p>Total Bandits Items: \${data.totalBanditsAmount}</p>
             <p>Total Bandits USD: \${data.totalBanditsUSD || "Error fetching price"}</p>
-            <p>Total Bandits USD (No Fee): \${data.totalBanditsUSDNoFee === 0.01 ? "Error fetching price" : data.totalBanditsUSD}</p>
+            <p>Total Bandits USD (No Fee): \${data.totalBanditsUSDNoFee === 0.01 ? "Error fetching price" : data.totalBanditsUSDNoFee}</p>
             <p>Steam Market Supply: \${data.steamMarketSupply}</p>
             <table border="1">
               <thead>
