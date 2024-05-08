@@ -250,8 +250,7 @@ app.get("/api/inventory", async (req, res) => {
         `https://steamcommunity.com/inventory/${row.steamId}/252490/2?l=english&count=500`
       );
 
-      if (!result.data && result.data.success === false) {
-
+      if (!result.data || result.data.success === false || !result.data.assets) {
         itemCounts[row.steamId] = await new Promise((resolve, reject) => {
           db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [row.steamId, itemId], (err, row) => {
             if (err) reject({
@@ -261,21 +260,29 @@ app.get("/api/inventory", async (req, res) => {
               USDNoFee: 0
             });
 
-            resolve({
-              name: steamName,
-              amount: row.amount,
-              USD: row.USD,
-              USDNoFee: row.USDNoFee
-            });
+            if (row) {
+              resolve({
+                name: steamName,
+                amount: row.amount,
+                USD: row.USD,
+                USDNoFee: row.USDNoFee
+              });
+            } else {
+              resolve({
+                name: steamName,
+                amount: 0,
+                USD: 0,
+                USDNoFee: 0
+              });
+            }
           });
-        
         });
         continue;
       };
 
-      const { data } = result;
+      const assets = result.data.assets;
 
-      const amount = data["assets"].filter((item) => item.classid === itemId).length;
+      const amount = assets.filter((item) => item.classid === itemId).length;
 
       const USDNoFee = Math.round(((prices[itemId] * amount) / 1.15)+1) / 100;
       
