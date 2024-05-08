@@ -273,9 +273,7 @@ app.get("/api/inventory", async (req, res) => {
         continue;
       };
 
-      const data = result.data;
-
-      console.log(data);
+      const { data } = result;
 
       const amount = data["assets"].filter((item) => item.classid === itemId).length;
 
