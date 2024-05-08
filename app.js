@@ -173,40 +173,74 @@ app.get("/api/inventory", async (req, res) => {
   const itemCounts = {};
 
   try {
+    let selectDataFromDb = false;
+
     if (Date.now() - lastPricesCheck[itemId] > 60000) {
-      const { data: priceData } = await axios.get(`https://steamcommunity.com/market/search?q=${items[itemId]}`, {
-        headers: {
-          "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-          "accept-language": "en-US,en;q=0.9",
-          "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Chromium\";v=\"124\"",
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": "\"Windows\"",
-          "sec-fetch-dest": "document",
-          "sec-fetch-mode": "navigate",
-          "sec-fetch-site": "same-origin",
-          "sec-fetch-user": "?1",
-          "upgrade-insecure-requests": "1",
-          "Referer": "https://steamcommunity.com/market/search",
-          "Referrer-Policy": "strict-origin-when-cross-origin"
+      try {
+        const { data: priceData } = await axios.get(`https://steamcommunity.com/market/search?q=${items[itemId]}`, {
+          headers: {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "en-US,en;q=0.9",
+            "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Chromium\";v=\"124\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "Referer": "https://steamcommunity.com/market/search",
+            "Referrer-Policy": "strict-origin-when-cross-origin"
+          }
+        });
+  
+        const $ = cheerio.load(priceData);
+    
+        prices[itemId] = $(".normal_price[data-price]").attr("data-price") ?? prices[itemId];
+    
+        steamMarketSupplies[itemId] = $(".market_listing_num_listings_qty[data-qty]").attr("data-qty") ?? steamMarketSupplies[itemId];
+  
+        if (lastPricesCheck[itemId] !== 0) {
+          lastPricesCheck[itemId] = Date.now();
+          db.run("UPDATE lastPricesCheck SET lastCheck = ? WHERE itemId = ?", [lastPricesCheck[itemId], itemId]);
+        } else {
+          selectDataFromDb = true;
         }
+  
+        if (prices[itemId] !== 0) {
+          db.run("INSERT OR REPLACE INTO prices (itemId, price) VALUES (?, ?)", [itemId, prices[itemId]]);
+        } else {
+          selectDataFromDb = true;
+        }
+  
+        db.run("INSERT OR REPLACE INTO steamMarketSupplies (itemId, marketSupply) VALUES (?, ?)", [itemId, steamMarketSupplies[itemId]]);
+      } catch (error) {
+        selectDataFromDb = true;
+      }
+
+      prices[itemId] = await new Promise((resolve, reject) => {
+        db.get("SELECT * FROM prices WHERE itemId = ?", [itemId], (err, row) => {
+          if (err) reject(err);
+
+          if (row) {
+            resolve(row.price);
+          } else {
+            resolve(0);
+          }
+        });
       });
 
-      const $ = cheerio.load(priceData);
-  
-      prices[itemId] = $(".normal_price[data-price]").attr("data-price") ?? prices[itemId];
-  
-      steamMarketSupplies[itemId] = $(".market_listing_num_listings_qty[data-qty]").attr("data-qty") ?? steamMarketSupplies[itemId];
+      steamMarketSupplies[itemId] = await new Promise((resolve, reject) => {
+        db.get("SELECT * FROM steamMarketSupplies WHERE itemId = ?", [itemId], (err, row) => {
+          if (err) reject(err);
 
-      if (lastPricesCheck[itemId] !== 0) {
-        lastPricesCheck[itemId] = Date.now();
-        db.run("UPDATE lastPricesCheck SET lastCheck = ? WHERE itemId = ?", [lastPricesCheck[itemId], itemId]);
-      }
-
-      if (prices[itemId] !== 0) {
-        db.run("INSERT OR REPLACE INTO prices (itemId, price) VALUES (?, ?)", [itemId, prices[itemId]]);
-      }
-
-      db.run("INSERT OR REPLACE INTO steamMarketSupplies (itemId, marketSupply) VALUES (?, ?)", [itemId, steamMarketSupplies[itemId]]);
+          if (row) {
+            resolve(row.marketSupply);
+          } else {
+            resolve(0);
+          }
+        });
+      });
     }
 
     const rows = await new Promise((resolve, reject) => {
@@ -246,11 +280,17 @@ app.get("/api/inventory", async (req, res) => {
         continue;
       }
 
-      const result = await axios.get(
-        `https://steamcommunity.com/inventory/${row.steamId}/252490/2?l=english&count=500`
-      );
+      let result = null;
 
-      if (!result.data || result.data.success === false || !result.data.assets) {
+      try {
+        result = await axios.get(
+          `https://steamcommunity.com/inventory/${row.steamId}/252490/2?l=english&count=500`
+        );
+      } catch {
+        
+      }
+
+      if (!result || !result.data || result.data.success === false || !result.data.assets) {
         itemCounts[row.steamId] = await new Promise((resolve, reject) => {
           db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [row.steamId, itemId], (err, row) => {
             if (err) reject({
@@ -322,11 +362,6 @@ app.get("/api/inventory", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
-    if (error === "AxiosError: Request failed with status code 429") {
-      res.status(429).json({ error: "Steam returned 'success': false" });
-      return;
-    }
 
     require("fs").appendFileSync("error.log", error + "\n");
     res.status(500).json({ error: "Error fetching inventories" });
