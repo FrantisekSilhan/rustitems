@@ -275,6 +275,8 @@ app.get("/api/inventory", async (req, res) => {
 
       const data = result.data;
 
+      console.log(data);
+
       const amount = data["assets"].filter((item) => item.classid === itemId).length;
 
       const USDNoFee = Math.round(((prices[itemId] * amount) / 1.15)+1) / 100;
