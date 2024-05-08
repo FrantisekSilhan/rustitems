@@ -267,9 +267,11 @@ app.get("/inventories", (req, res) => {
                 </tr>
               </thead>
               <tbody>
-                \${Object.keys(data.itemCounts).map(steamId => \`
+                \${Object.keys(data.itemCounts)
+                  .sort((a, b) => data.itemCounts[b].amount - data.itemCounts[a].amount)
+                  .map(steamId => \`
                   <tr>
-                    <td>\${steamId}</td>
+                    <td><a href="https://steamcommunity.com/profiles/\${steamId}/">\${steamId}</a></td>
                     <td>\${data.itemCounts[steamId].name}</td>
                     <td>\${data.itemCounts[steamId].amount}</td>
                     <td>$\${data.itemCounts[steamId].USD}</td>
