@@ -435,6 +435,8 @@ app.get("/inventories", (req, res) => {
             <p>Total Bandits USD: \${data.totalBanditsUSD || "Error fetching price"}</p>
             <p>Total Bandits USD (No Fee): \${data.totalBanditsUSDNoFee === 0.01 ? "Error fetching price" : data.totalBanditsUSDNoFee}</p>
             <p>Steam Market Supply: \${data.steamMarketSupply}</p>
+            <p>Price For One: \${data.price}</p>
+            <p>Price For One (No Fee): \${data.priceNoFee}</p>
             <table border="1">
               <thead>
                 <tr>
