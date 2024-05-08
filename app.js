@@ -20,7 +20,7 @@ app.get("/", (req, res) => {
       <input type="text" name="steamVU" placeholder="Steam Vanity URL" />
       <button type="submit">Submit</button>
     </form>
-    <a href="/api/inventory">Check inventories</a>
+    <a href="/inventories">Check inventories</a>
     `);
 });
 
@@ -63,7 +63,7 @@ app.post("/api/add/steamId", async (req, res) => {
       res.send(`
         Steam ID already exists
         <div>
-          <a href="/api/inventory">Check inventories</a>
+          <a href="/inventories">Check inventories</a>
         </div>
         <div>
           <a href="/">Go back</a>
@@ -81,7 +81,7 @@ app.post("/api/add/steamId", async (req, res) => {
           res.send(`
             Steam ID added successfully
             <div>
-              <a href="/api/inventory">Check inventories</a>
+              <a href="/inventories">Check inventories</a>
             </div>
             <div>
               <a href="/">Go back</a>
@@ -94,7 +94,7 @@ app.post("/api/add/steamId", async (req, res) => {
     res.send(`
       Error adding Steam ID
       <div>
-        <a href="/api/inventory">Check inventories</a>
+        <a href="/inventories">Check inventories</a>
       </div>
       <div>
         <a href="/">Go back</a>
@@ -103,18 +103,39 @@ app.post("/api/add/steamId", async (req, res) => {
   }
 });
 
-let lastInventoryCheck = 0;
-let price = 0;
-let marketSupply = 0;
+const lastPricesCheck = {};
+const prices = {};
+const steamMarketSupplies = {};
+
+const items = {
+  "5594397966": "Scarecrow Facemask",
+  "Scarecrow Facemask": "5594397966",
+  "5594397965": "Scarecrow Chestplate",
+  "Scarecrow Chestplate": "5594397965",
+};
 
 app.get("/api/inventory", async (req, res) => {
-  const itemId = "5594397966";
+  const item = req.query.item;
+
+  let itemId = item;
+
+  if (isNaN(parseInt(item))) {
+    itemId = items[item];
+  }
+
+  if (!items[itemId]) {
+    itemId = items["Scarecrow Facemask"];
+  }
+
+  lastPricesCheck[itemId] = lastPricesCheck[itemId] ?? 0;
+  prices[itemId] = prices[itemId] ?? 0;
+  steamMarketSupplies[itemId] = steamMarketSupplies[itemId] ?? 0;
 
   const itemCounts = {};
 
   try {
-    if (Date.now() - lastInventoryCheck > 60000) {
-      const { data: priceData } = await axios.get("https://steamcommunity.com/market/search?q=scarecrow+facemask", {
+    if (Date.now() - lastPricesCheck[itemId] > 60000) {
+      const { data: priceData } = await axios.get(`https://steamcommunity.com/market/search?q=${items[itemId]}`, {
         headers: {
           "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
           "accept-language": "en-US,en;q=0.9",
@@ -133,11 +154,13 @@ app.get("/api/inventory", async (req, res) => {
 
       const $ = cheerio.load(priceData);
   
-      price = $(".normal_price[data-price]").attr("data-price") ?? price;
+      prices[itemId] = $(".normal_price[data-price]").attr("data-price") ?? prices[itemId];
   
-      marketSupply = $(".market_listing_num_listings_qty[data-qty]").attr("data-qty") ?? marketSupply;
+      steamMarketSupplies[itemId] = $(".market_listing_num_listings_qty[data-qty]").attr("data-qty") ?? steamMarketSupplies[itemId];
 
-      lastInventoryCheck = Date.now();
+      if (lastPricesCheck[itemId] !== 0) {
+        lastPricesCheck[itemId] = Date.now();
+      }
     }
 
     const rows = await new Promise((resolve, reject) => {
@@ -156,8 +179,8 @@ app.get("/api/inventory", async (req, res) => {
         itemCounts[row.steamId] = {
           name: row.steamName.replace(/bandit.camp/gi, "").trim(),
           amount: 0,
-          USDPrice: 0,
-          USDPriceAfterFee: 0
+          USD: 0,
+          USDNoFee: 0
         };
         continue;
       };
@@ -167,29 +190,107 @@ app.get("/api/inventory", async (req, res) => {
       itemCounts[row.steamId] = {
         name: row.steamName.replace(/bandit.camp/gi, "").trim(),
         amount: amount,
-        USDPrice: (price * amount) / 100,
-        USDPriceAfterFee: Math.round(((price * amount) / 1.15)+1) / 100
+        USD: (prices[itemId] * amount) / 100,
+        USDNoFee: Math.round(((prices[itemId] * amount) / 1.15)+1) / 100
       };
     }
 
-    const totalAmount = Object.values(itemCounts).reduce((acc, curr) => acc + curr.amount, 0);
-    const totalUSDPrice = Math.round(Object.values(itemCounts).reduce((acc, curr) => acc + curr.USDPrice, 0) * 100) / 100;
-    const totalUSDPriceAfterFee = Math.round(Object.values(itemCounts).reduce((acc, curr) => acc + curr.USDPriceAfterFee, 0) * 100) / 100;
+    const totalBanditsAmount = Object.values(itemCounts).reduce((acc, curr) => acc + curr.amount, 0);
+    const totalBanditsUSD = Math.round(Object.values(itemCounts).reduce((acc, curr) => acc + curr.USD, 0) * 100) / 100;
+    const totalBanditsUSDNoFee = Math.round(Object.values(itemCounts).reduce((acc, curr) => acc + curr.USDNoFee, 0) * 100) / 100;
 
-    res.send(`
-      <a href="/">Go back</a>
-      <h1>Scarecrow Facemasks</h1>
-      <pre>${JSON.stringify(itemCounts, null, 2)}</pre>
-      <p>single price: ${price / 100}$ / ${Math.round((price / 1.15)+1) / 100}$</p>
-      <p>total count: ${totalAmount} (${totalUSDPrice}$ / ${totalUSDPriceAfterFee}$)</p>
-      <p>market supply: ${marketSupply}</p>
-    `);
+    res.json({
+      itemCounts,
+      price: prices[itemId] / 100,
+      priceNoFee: Math.round((prices[itemId] / 1.15)+1) / 100,
+      totalBanditsAmount,
+      totalBanditsUSD,
+      totalBanditsUSDNoFee,
+      steamMarketSupply: steamMarketSupplies[itemId]
+    });
   } catch (error) {
     console.error(error);
-    res.send("něco je špatně, zjisti si to sám :D <= (toho smajlíka tam dal github copilot)");
+    require("fs").appendFileSync("error.log", error + "\n");
+    res.status(500).json({ error: "Error fetching inventories" });
   }
 });
 
+app.get("/inventories", (req, res) => {
+  res.send(`
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Bandit Camp Inventories</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #f2f2f2;
+      }
+    </style>
+    <script>
+      async function fetchData(item) {
+        try {
+          const response = await fetch("/api/inventory?item=" + item);
+  
+          if (!response.ok) {
+            alert("Error fetching data");
+          }
+  
+          const data = await response.json();
+  
+          document.getElementById("data").innerHTML = \`
+            <p>Total Bandits Items: \${data.totalBanditsAmount}</p>
+            <p>Total Bandits USD: \${data.totalBanditsUSD || "Error fetching price"}</p>
+            <p>Total Bandits USD (No Fee): \${data.totalBanditsUSDNoFee === 0.01 ? "Error fetching price" : data.totalBanditsUSD}</p>
+            <p>Steam Market Supply: \${data.steamMarketSupply}</p>
+            <table border="1">
+              <thead>
+                <tr>
+                  <th>Steam ID</th>
+                  <th>Name</th>
+                  <th>Amount</th>
+                  <th>USD</th>
+                  <th>USD (No Fee)</th>
+                </tr>
+              </thead>
+              <tbody>
+                \${Object.keys(data.itemCounts).map(steamId => \`
+                  <tr>
+                    <td>\${steamId}</td>
+                    <td>\${data.itemCounts[steamId].name}</td>
+                    <td>\${data.itemCounts[steamId].amount}</td>
+                    <td>$\${data.itemCounts[steamId].USD}</td>
+                    <td>$\${data.itemCounts[steamId].USDNoFee}</td>
+                  </tr>
+                \`).join("")}
+              </tbody>
+            </table>
+          \`;
+        } catch {
+          alert("Error fetching data");
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div>
+      ${Object.keys(items).filter(item => !isNaN(parseInt(item))).map((item) => `<button onclick="fetchData('${item}')">${items[item]}</button>`).join("")}
+    </div>
+    <div id="data"></div>
+  </body>
+`)
+});
 
 app.listen(6976, () => {
   console.log("Server is running on port 6976");
