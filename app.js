@@ -548,7 +548,7 @@ app.listen(6976, () => {
 });
 
 const start = async () => {
-  lastPricesCheckRows = await new Promise((resolve, reject) => {
+  const lastPricesCheckRows = await new Promise((resolve, reject) => {
     db.all("SELECT * FROM lastPricesCheck", (err, rows) => {
       if (err) reject(err);
 
@@ -558,7 +558,7 @@ const start = async () => {
     });
   });
 
-  pricesRows = await new Promise((resolve, reject) => {
+  const pricesRows = await new Promise((resolve, reject) => {
     db.all("SELECT * FROM prices", (err, rows) => {
       if (err) reject(err);
 
@@ -568,7 +568,7 @@ const start = async () => {
     });
   });
 
-  steamMarketSuppliesRows = await new Promise((resolve, reject) => {
+  const steamMarketSuppliesRows = await new Promise((resolve, reject) => {
     db.all("SELECT * FROM steamMarketSupplies", (err, rows) => {
       if (err) reject(err);
 
