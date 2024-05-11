@@ -153,8 +153,11 @@ const items = {
   "Scarecrow Chestplate": "5594397965",
 };
 
+const successfullRequests = {};
+
 app.get("/api/inventory", async (req, res) => {
   const item = req.query.item;
+  const prefetch = req.query.prefetch;
 
   let itemId = item;
 
@@ -164,6 +167,10 @@ app.get("/api/inventory", async (req, res) => {
 
   if (!items[itemId]) {
     itemId = items["Scarecrow Facemask"];
+  }
+
+  if (prefetch) {
+    return res.json(successfullRequests[itemId] ?? { success: false });
   }
 
   lastPricesCheck[itemId] = lastPricesCheck[itemId] ?? 0;
@@ -379,7 +386,8 @@ app.get("/api/inventory", async (req, res) => {
     const totalBanditsUSD = Math.round(Object.values(itemCounts).reduce((acc, curr) => acc + curr.USD, 0) * 100) / 100;
     const totalBanditsUSDNoFee = Math.round(Object.values(itemCounts).reduce((acc, curr) => acc + curr.USDNoFee, 0) * 100) / 100;
 
-    res.json({
+    successfullRequests[itemId] = {
+      success: true,
       itemCounts,
       price: prices[itemId] / 100,
       priceNoFee: Math.round((prices[itemId] / 1.15)+1) / 100,
@@ -387,7 +395,9 @@ app.get("/api/inventory", async (req, res) => {
       totalBanditsUSD,
       totalBanditsUSDNoFee,
       steamMarketSupply: steamMarketSupplies[itemId]
-    });
+    }
+
+    res.json(successfullRequests[itemId]);
   } catch (error) {
     console.error(error);
 
@@ -420,12 +430,67 @@ app.get("/inventories", (req, res) => {
       }
     </style>
     <script>
+      let currentItemId = null;
+
+      async function prefetchData(item) {
+        const response = await fetch("/api/inventory?item=" + item + "&prefetch=true");
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          return;
+        }
+  
+        document.getElementById("data").innerHTML = \`
+          <p>Total Bandits Items: \${data.totalBanditsAmount}</p>
+          <p>Total Bandits USD: $\${data.totalBanditsUSD || "Error fetching price"}</p>
+          <p>Total Bandits USD (No Fee): $\${data.totalBanditsUSDNoFee === 0.01 ? "Error fetching price" : data.totalBanditsUSDNoFee}</p>
+          <p>Steam Market Supply: \${data.steamMarketSupply}</p>
+          <p>Single Item USD: $\${data.price}</p>
+          <p>Single Item USD (No Fee): $\${data.priceNoFee}</p>
+          <table border="1">
+            <thead>
+              <tr>
+                <th>Steam ID</th>
+                <th>Name</th>
+                <th>Amount</th>
+                <th>USD</th>
+                <th>USD (No Fee)</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${Object.keys(data.itemCounts)
+                .sort((a, b) => data.itemCounts[b].amount - data.itemCounts[a].amount)
+                .map(steamId => \`
+                <tr>
+                  <td><a href="https://steamcommunity.com/profiles/\${steamId}/" target="_blank">\${steamId}</a></td>
+                  <td>\${data.itemCounts[steamId].name}</td>
+                  <td>\${data.itemCounts[steamId].amount}</td>
+                  <td>$\${data.itemCounts[steamId].USD}</td>
+                  <td>$\${data.itemCounts[steamId].USDNoFee}</td>
+                </tr>
+              \`).join("")}
+            </tbody>
+          </table>
+        \`;
+      }
+
       async function fetchData(item) {
+        currentItemId = item;
+        prefetchData(item);
         try {
           const response = await fetch("/api/inventory?item=" + item);
   
           if (!response.ok) {
             alert(response.statusText);
+          }
+
+          if (currentItemId !== item) {
+            return;
           }
   
           const data = await response.json();
