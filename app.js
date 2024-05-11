@@ -484,13 +484,13 @@ app.get("/inventories", (req, res) => {
         prefetchData(item);
         try {
           const response = await fetch("/api/inventory?item=" + item);
+          
+          if (currentItemId !== item) {
+            return;
+          }
   
           if (!response.ok) {
             alert(response.statusText);
-          }
-
-          if (currentItemId !== item) {
-            return;
           }
   
           const data = await response.json();
