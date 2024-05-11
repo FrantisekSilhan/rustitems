@@ -548,7 +548,7 @@ app.listen(6976, () => {
 });
 
 const start = async () => {
-  lastPricesCheck = await new Promise((resolve, reject) => {
+  lastPricesCheckRow = await new Promise((resolve, reject) => {
     db.all("SELECT * FROM lastPricesCheck", (err, rows) => {
       if (err) reject(err);
 
@@ -558,7 +558,7 @@ const start = async () => {
     });
   });
 
-  prices = await new Promise((resolve, reject) => {
+  pricesRow = await new Promise((resolve, reject) => {
     db.all("SELECT * FROM prices", (err, rows) => {
       if (err) reject(err);
 
@@ -568,7 +568,7 @@ const start = async () => {
     });
   });
 
-  steamMarketSupplies = await new Promise((resolve, reject) => {
+  steamMarketSuppliesRow = await new Promise((resolve, reject) => {
     db.all("SELECT * FROM steamMarketSupplies", (err, rows) => {
       if (err) reject(err);
 
@@ -576,5 +576,17 @@ const start = async () => {
         steamMarketSupplies[row.itemId] = row.marketSupply;
       }));
     });
+  });
+
+  lastPricesCheckRows.forEach(row => {
+    lastPricesCheck[row.itemId] = row.lastCheck;
+  });
+
+  pricesRows.forEach(row => {
+    prices[row.itemId] = row.price;
+  });
+
+  steamMarketSuppliesRows.forEach(row => {
+    steamMarketSupplies[row.itemId] = row.marketSupply;
   });
 };
