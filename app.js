@@ -375,7 +375,7 @@ app.get("/api/inventory", async (req, res) => {
         });
       });
 
-      if (usersItems) {
+      if (usersItems && itemCounts[row.steamId].amount !== 0) {
         db.run("UPDATE itemCounts SET amount = ?, USD = ?, USDNoFee = ?, lastUpdated = ? WHERE id = ?",
           [itemCounts[row.steamId].amount, itemCounts[row.steamId].USD, itemCounts[row.steamId].USDNoFee, Date.now(), usersItems.id]
         );
@@ -544,6 +544,7 @@ app.get("/inventories", (req, res) => {
 
 app.listen(6976, () => {
   console.log("Server is running on port 6976");
+  start();
 });
 
 const start = async () => {
@@ -576,4 +577,4 @@ const start = async () => {
       }));
     });
   });
-}
+};
