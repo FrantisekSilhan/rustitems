@@ -322,8 +322,9 @@ app.get("/api/inventory", async (req, res) => {
       }
 
       if (!result || !result.data || result.data.success === false || !result.data.assets) {
-        itemCounts[row.steamId] = await new Promise((resolve, reject) => {
-          db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [row.steamId, itemId], (err, row) => {
+        const steamId = row.steamId;
+        itemCounts[steamId] = await new Promise((resolve, reject) => {
+          db.get("SELECT * FROM itemCounts WHERE steamId = ? and itemId = ?", [steamId, itemId], (err, row) => {
             if (err) reject({
               name: steamName,
               amount: 0,
@@ -339,6 +340,9 @@ app.get("/api/inventory", async (req, res) => {
                 USDNoFee: row.USDNoFee
               });
             } else {
+              db.run("INSERT INTO itemCounts (steamId, itemId, name, amount, USD, USDNoFee) VALUES (?, ?, ?, ?, ?, ?)",
+                [steamId, itemId, steamName, 0, 0, 0]
+              );
               resolve({
                 name: steamName,
                 amount: 0,
