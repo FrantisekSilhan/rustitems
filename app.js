@@ -207,12 +207,8 @@ app.get("/api/inventory", async (req, res) => {
     
         steamMarketSupplies[itemId] = $(".market_listing_num_listings_qty[data-qty]").attr("data-qty") ?? steamMarketSupplies[itemId];
   
-        if (lastPricesCheck[itemId] !== 0) {
-          lastPricesCheck[itemId] = Date.now();
-          db.run("UPDATE lastPricesCheck SET lastCheck = ? WHERE itemId = ?", [lastPricesCheck[itemId], itemId]);
-        } else {
-          selectDataFromDb = true;
-        }
+        lastPricesCheck[itemId] = Date.now();
+        db.run("INSERT OR REPLACE INTO lastPricesCheck (itemId, lastCheck) VALUES (?, ?)", [itemId, lastPricesCheck[itemId]]);
   
         if (prices[itemId] !== 0) {
           db.run("INSERT OR REPLACE INTO prices (itemId, price) VALUES (?, ?)", [itemId, prices[itemId]]);
@@ -378,6 +374,10 @@ app.get("/api/inventory", async (req, res) => {
       if (usersItems && itemCounts[row.steamId].amount !== 0) {
         db.run("UPDATE itemCounts SET amount = ?, USD = ?, USDNoFee = ?, lastUpdated = ? WHERE id = ?",
           [itemCounts[row.steamId].amount, itemCounts[row.steamId].USD, itemCounts[row.steamId].USDNoFee, Date.now(), usersItems.id]
+        );
+      } else if (!usersItems) {
+        db.run("INSERT INTO itemCounts (steamId, itemId, name, amount, USD, USDNoFee) VALUES (?, ?, ?, ?, ?, ?)",
+          [row.steamId, itemId, steamName, itemCounts[row.steamId].amount, itemCounts[row.steamId].USD, itemCounts[row.steamId].USDNoFee]
         );
       }
     }
@@ -577,4 +577,34 @@ const start = async () => {
       }));
     });
   });
+
+  const itemCountsRows = await new Promise((resolve, reject) => {
+    db.all("SELECT * FROM itemCounts", (err, rows) => {
+      if (err) reject(err);
+      resolve(rows);
+    });
+  });
+  
+  Object.keys(lastPricesCheck).forEach(async (itemId) => {
+    successfullRequests[itemId] = {
+      success: true,
+      itemCounts: itemCountsRows.reduce((acc, row) => {
+        if (row.itemId === itemId) {
+          acc[row.steamId] = {
+            name: row.name,
+            amount: row.amount,
+            USD: row.USD,
+            USDNoFee: row.USDNoFee
+          };
+        }
+        return acc;
+      }, {}),
+      price: prices[itemId] / 100,
+      priceNoFee: Math.round((prices[itemId] / 1.15)+1) / 100,
+      totalBanditsAmount: itemCountsRows.filter(row => row.itemId === itemId).reduce((acc, row) => acc + row.amount, 0),
+      totalBanditsUSD: Math.round(itemCountsRows.filter(row => row.itemId === itemId).reduce((acc, row) => acc + row.USD, 0) * 100) / 100,
+      totalBanditsUSDNoFee: Math.round(itemCountsRows.filter(row => row.itemId === itemId).reduce((acc, row) => acc + row.USDNoFee, 0) * 100) / 100,
+      steamMarketSupply: steamMarketSupplies[itemId]
+    };
+  })
 };
