@@ -54,6 +54,16 @@ const axios = require("axios");
 
 app.get("/", (req, res) => {
   res.send(`
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #333;
+        color: #ccc;
+      }
+      a {
+        color: lightblue;
+      }
+    </style>
     <form action="/api/add/steamId" method="post">
       <input type="text" name="steamId" placeholder="Steam ID" />
       <input type="text" name="steamVU" placeholder="Steam Vanity URL" />
@@ -100,6 +110,16 @@ app.post("/api/add/steamId", async (req, res) => {
 
     if (existingUser) {
       res.send(`
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            background-color: #333;
+            color: #ccc;
+          }
+          a {
+            color: lightblue;
+          }
+        </style>
         Steam ID already exists
         <div>
           <a href="/inventories">Check inventories</a>
@@ -118,6 +138,16 @@ app.post("/api/add/steamId", async (req, res) => {
           res.send(err);
         } else {
           res.send(`
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                background-color: #333;
+                color: #ccc;
+              }
+              a {
+                color: lightblue;
+              }
+            </style>
             Steam ID added successfully
             <div>
               <a href="/inventories">Check inventories</a>
@@ -131,6 +161,16 @@ app.post("/api/add/steamId", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.send(`
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #333;
+          color: #ccc;
+        }
+        a {
+          color: lightblue;
+        }
+      </style>
       Error adding Steam ID
       <div>
         <a href="/inventories">Check inventories</a>
@@ -419,6 +459,11 @@ app.get("/inventories", (req, res) => {
     <style>
       body {
         font-family: Arial, sans-serif;
+        background-color: #333;
+        color: #ccc;
+      }
+      a {
+        color: lightblue;
       }
       table {
         border-collapse: collapse;
@@ -430,7 +475,7 @@ app.get("/inventories", (req, res) => {
         text-align: left;
       }
       th {
-        background-color: #f2f2f2;
+        background-color: #000;
       }
     </style>
     <script>
