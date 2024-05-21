@@ -95,7 +95,7 @@ app.post("/api/add/steamId", async (req, res) => {
       );
       steamId = data.response.steamid;
     } catch (error) {
-      console.error(error);
+      require("fs").appendFileSync("error.log", error + "\n");
       res.send("Error resolving Steam Vanity URL");
     }
   }
@@ -168,7 +168,7 @@ app.post("/api/add/steamId", async (req, res) => {
         }
     });
   } catch (error) {
-    console.error(error);
+    require("fs").appendFileSync("error.log", error + "\n");
     res.send(`
       <style>
         body {
@@ -250,6 +250,7 @@ app.get("/api/item", async (req, res) => {
 
       db.run("UPDATE scrapalizer SET USD = ?, lastUpdated = ? WHERE steamName = ?", [price, Date.now(), itemName]);
     } catch (error) {
+      require("fs").appendFileSync("error.log", error + "\n");
       price = 0;
     }
   }
@@ -331,6 +332,7 @@ app.get("/api/inventory", async (req, res) => {
   
         db.run("INSERT OR REPLACE INTO steamMarketSupplies (itemId, marketSupply) VALUES (?, ?)", [itemId, steamMarketSupplies[itemId]]);
       } catch (error) {
+        require("fs").appendFileSync("error.log", error + "\n");
         selectDataFromDb = true;
       }
 
@@ -430,8 +432,8 @@ app.get("/api/inventory", async (req, res) => {
         result = await axios.get(
           `https://steamcommunity.com/inventory/${row.steamId}/252490/2?l=english&count=500`
         );
-      } catch {
-        
+      } catch (error) {
+        require("fs").appendFileSync("error.log", error + "\n");
       }
 
       if (!result || !result.data || result.data.success === false || !result.data.assets) {
@@ -516,8 +518,6 @@ app.get("/api/inventory", async (req, res) => {
 
     res.json(successfullRequests[itemId]);
   } catch (error) {
-    console.error(error);
-
     require("fs").appendFileSync("error.log", error + "\n");
     res.status(500).json({ error: "Error fetching inventories" });
   }
