@@ -223,7 +223,7 @@ app.get("/api/item", async (req, res) => {
     });
   }
 
-  let price = item.USD;
+  let price = !item ? 0 : item.USD;
 
   if (!item || Date.now() - item.lastUpdated > 60000 || item.USD === 0) {
     try {
