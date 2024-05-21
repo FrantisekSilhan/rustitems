@@ -198,28 +198,39 @@ const successfullRequests = {};
 app.get("/api/item", async (req, res) => {
   const itemName = req.query.item;
 
-  const { data } = await axios.get(`https://steamcommunity.com/market/search?q=${itemName}`, {
-    headers: {
-      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-      "accept-language": "en-US,en;q=0.9",
-      "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Chromium\";v=\"124\"",
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": "\"Windows\"",
-      "sec-fetch-dest": "document",
-      "sec-fetch-mode": "navigate",
-      "sec-fetch-site": "same-origin",
-      "sec-fetch-user": "?1",
-      "upgrade-insecure-requests": "1",
-      "Referer": "https://steamcommunity.com/market/search",
-      "Referrer-Policy": "strict-origin-when-cross-origin"
-    }
-  });
-
-  const $ = cheerio.load(data);
-
-  const price = $(".normal_price[data-price]").attr("data-price") ?? 0;
-
-  res.json({ price });
+  try {
+    const { data } = await axios.get(`https://steamcommunity.com/market/search?q=${itemName}`, {
+      headers: {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "en-US,en;q=0.9",
+        "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Chromium\";v=\"124\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "Referer": "https://steamcommunity.com/market/search",
+        "Referrer-Policy": "strict-origin-when-cross-origin"
+      }
+    });
+  
+    const $ = cheerio.load(data);
+  
+    const price = $(".normal_price[data-price]").attr("data-price") ?? 0;
+  
+    res.json({
+      success: true,
+      price: price
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      price: 0
+    });
+  }
 });
 
 app.get("/api/inventory", async (req, res) => {
