@@ -219,6 +219,13 @@ app.get("/api/item", async (req, res) => {
     const $ = cheerio.load(data);
   
     const price = $(".normal_price[data-price]").attr("data-price") ?? 0;
+
+    if (price === 0) {
+      res.json({
+        success: false,
+        price: 0
+      });
+    }
   
     res.json({
       success: true,
