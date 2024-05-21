@@ -225,6 +225,7 @@ app.get("/api/item", async (req, res) => {
         success: false,
         price: 0
       });
+      return;
     }
   
     res.json({
