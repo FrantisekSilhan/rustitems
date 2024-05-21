@@ -198,8 +198,6 @@ const successfullRequests = {};
 app.get("/api/item", async (req, res) => {
   const itemName = req.query.item;
 
-  res.setHeader("Access-Control-Allow-Origin", "*");
-
   try {
     const { data } = await axios.get(`https://steamcommunity.com/market/search?q=${itemName}`, {
       headers: {
