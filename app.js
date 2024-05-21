@@ -45,6 +45,15 @@ db.serialize(() => {
       lastUpdated INTEGER DEFAULT 0
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS scrapalizer (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      steamName TEXT,
+      USD INTEGER,
+      lastUpdated INTEGER DEFAULT 0
+    )
+  `);
 });
 
 const app = express();
@@ -198,47 +207,65 @@ const successfullRequests = {};
 app.get("/api/item", async (req, res) => {
   const itemName = req.query.item;
 
-  try {
-    const { data } = await axios.get(`https://steamcommunity.com/market/search?appid=252490&q=${itemName}`, {
-      headers: {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "en-US,en;q=0.9",
-        "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Chromium\";v=\"124\"",
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": "\"Windows\"",
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "Referer": "https://steamcommunity.com/market/search",
-        "Referrer-Policy": "strict-origin-when-cross-origin"
-      }
+  const item = await new Promise((resolve, reject) => {
+    db.get("SELECT * FROM scrapalizer WHERE steamName = ?", [itemName], (err, row) => {
+      if (err) reject(err);
+      resolve(row);
     });
-  
-    const $ = cheerio.load(data);
-  
-    const price = $(".normal_price[data-price]").attr("data-price") ?? 0;
+  });
 
-    if (price === 0) {
-      res.json({
-        success: false,
-        price: 0
+  if (!item) {
+    await new Promise((resolve, reject) => {
+      db.run("INSERT INTO scrapalizer (steamName, USD) VALUES (?, ?)", [itemName, 0], (err) => {
+        if (err) reject(err);
+        resolve();
       });
-      return;
-    }
-  
-    res.json({
-      success: true,
-      price: price
     });
-  } catch (error) {
-    console.error(error);
+  }
+
+  let price = item.USD;
+
+  if (!item || Date.now() - item.lastUpdated > 60000 || item.USD === 0) {
+    try {
+      const { data } = await axios.get(`https://steamcommunity.com/market/search?appid=252490&q=${itemName}`, {
+        headers: {
+          "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "accept-language": "en-US,en;q=0.9",
+          "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Chromium\";v=\"124\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-fetch-dest": "document",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-user": "?1",
+          "upgrade-insecure-requests": "1",
+          "Referer": "https://steamcommunity.com/market/search",
+          "Referrer-Policy": "strict-origin-when-cross-origin"
+        }
+      });
+    
+      const $ = cheerio.load(data);
+    
+      price = $(".normal_price[data-price]").attr("data-price") ?? 0;
+
+      db.run("UPDATE scrapalizer SET USD = ?, lastUpdated = ? WHERE steamName = ?", [price, Date.now(), itemName]);
+    } catch (error) {
+      price = 0;
+    }
+  }
+
+  if (price === 0) {
     res.status(500).json({
       success: false,
       price: 0
     });
+    return;
   }
+
+  res.json({
+    success: true,
+    price: price
+  });
 });
 
 app.get("/api/inventory", async (req, res) => {
