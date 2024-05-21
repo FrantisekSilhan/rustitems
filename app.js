@@ -199,7 +199,7 @@ app.get("/api/item", async (req, res) => {
   const itemName = req.query.item;
 
   try {
-    const { data } = await axios.get(`https://steamcommunity.com/market/search?q=${itemName}`, {
+    const { data } = await axios.get(`https://steamcommunity.com/market/search?appid=252490&q=${itemName}`, {
       headers: {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "en-US,en;q=0.9",
@@ -270,7 +270,7 @@ app.get("/api/inventory", async (req, res) => {
 
     if (Date.now() - lastPricesCheck[itemId] > 60000) {
       try {
-        const { data: priceData } = await axios.get(`https://steamcommunity.com/market/search?q=${items[itemId]}`, {
+        const { data: priceData } = await axios.get(`https://steamcommunity.com/market/search?appid=252490&q=${items[itemId]}`, {
           headers: {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "accept-language": "en-US,en;q=0.9",
