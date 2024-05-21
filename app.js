@@ -246,12 +246,11 @@ app.get("/api/item", async (req, res) => {
     
       const $ = cheerio.load(data);
     
-      price = $(".normal_price[data-price]").attr("data-price") ?? 0;
+      price = $(".normal_price[data-price]").attr("data-price") ?? price;
 
       db.run("UPDATE scrapalizer SET USD = ?, lastUpdated = ? WHERE steamName = ?", [price, Date.now(), itemName]);
     } catch (error) {
       require("fs").appendFileSync("error.log", error + "\n");
-      price = 0;
     }
   }
 
