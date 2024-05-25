@@ -204,53 +204,6 @@ const items = {
 
 const successfullRequests = {};
 
-app.get("/api/item", async (req, res) => {
-  const itemName = req.query.item;
-
-  const item = await new Promise((resolve, reject) => {
-    db.get("SELECT * FROM scrapalizer WHERE steamName = ?", [itemName], (err, row) => {
-      if (err) reject(err);
-      resolve(row);
-    });
-  });
-
-  if (!item) {
-    await new Promise((resolve, reject) => {
-      db.run("INSERT INTO scrapalizer (steamName, USD) VALUES (?, ?)", [itemName, 0], (err) => {
-        if (err) reject(err);
-        resolve();
-      });
-    });
-  }
-
-  let price = !item ? 0 : item.USD;
-
-  if (!item || Date.now() - item.lastUpdated > 60000 || item.USD === 0) {
-    try {
-      const { data } = await axios.get(`https://steamcommunity.com/market/search/render/?search_descriptions=0&appid=252490&norender=1&query=${itemName}`);
-    
-      price = data.results[0].sell_price ?? price;
-
-      db.run("UPDATE scrapalizer SET USD = ?, lastUpdated = ? WHERE steamName = ?", [price, Date.now(), itemName]);
-    } catch (error) {
-      require("fs").appendFileSync("error.log", error + "\n");
-    }
-  }
-
-  if (price === 0) {
-    res.status(500).json({
-      success: false,
-      price: 0
-    });
-    return;
-  }
-
-  res.json({
-    success: true,
-    price: price
-  });
-});
-
 app.get("/api/inventory", async (req, res) => {
   const item = req.query.item;
   const prefetch = req.query.prefetch;
