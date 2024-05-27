@@ -229,60 +229,16 @@ app.get("/api/inventory", async (req, res) => {
   const itemCounts = {};
 
   try {
-    let selectDataFromDb = false;
-
-    if (Date.now() - lastPricesCheck[itemId] > 60000) {
-      try {
-        const { data: priceData } = await axios.get(`https://steamcommunity.com/market/search/render/?search_descriptions=0&appid=252490&norender=1&query=${items[itemId]}`);
-    
-        if (priceData.success && priceData.results && priceData.results.length === 1) {
-          prices[itemId] = priceData.results[0].sell_price ?? prices[itemId];
-          if (prices[itemId] !== 0) {
-            db.run("INSERT OR REPLACE INTO prices (itemId, price) VALUES (?, ?)", [itemId, prices[itemId]]);
-          } else {
-            selectDataFromDb = true;
-          }
-        }
-
-        if (priceData.success && priceData.results && priceData.results.length === 1) {
-          steamMarketSupplies[itemId] = priceData.results[0].sell_listings ?? steamMarketSupplies[itemId];
-          db.run("INSERT OR REPLACE INTO steamMarketSupplies (itemId, marketSupply) VALUES (?, ?)", [itemId, steamMarketSupplies[itemId]]);
-        }
-  
-        lastPricesCheck[itemId] = Date.now();
-        db.run("INSERT OR REPLACE INTO lastPricesCheck (itemId, lastCheck) VALUES (?, ?)", [itemId, lastPricesCheck[itemId]]);
-      } catch (error) {
-        require("fs").appendFileSync("error.log", error + "\n");
-        selectDataFromDb = true;
+    try {
+      const { data: priceData } = await axios.get(`https://db.rust.xdd.moe/api/item?item=${encodeURIComponent(items[itemId])}`);
+        
+      if (priceData.success) {
+        prices[itemId] = priceData.data.sell_price;
+        steamMarketSupplies[itemId] = priceData.data.sell_listings;
       }
-    } else {
+    } catch (error) {
+      require("fs").appendFileSync("error.log", error + "\n");
       selectDataFromDb = true;
-    }
-
-    if (selectDataFromDb) {
-      prices[itemId] = await new Promise((resolve, reject) => {
-        db.get("SELECT * FROM prices WHERE itemId = ?", [itemId], (err, row) => {
-          if (err) reject(err);
-
-          if (row) {
-            resolve(row.price);
-          } else {
-            resolve(0);
-          }
-        });
-      });
-
-      steamMarketSupplies[itemId] = await new Promise((resolve, reject) => {
-        db.get("SELECT * FROM steamMarketSupplies WHERE itemId = ?", [itemId], (err, row) => {
-          if (err) reject(err);
-
-          if (row) {
-            resolve(row.marketSupply);
-          } else {
-            resolve(0);
-          }
-        });
-      });
     }
 
     const rows = await new Promise((resolve, reject) => {
