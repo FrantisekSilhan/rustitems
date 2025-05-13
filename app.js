@@ -196,10 +196,14 @@ const prices = {};
 const steamMarketSupplies = {};
 
 const items = {
-  "5594397966": "Scarecrow Facemask",
-  "Scarecrow Facemask": "5594397966",
-  "5594397965": "Scarecrow Chestplate",
-  "Scarecrow Chestplate": "5594397965",
+  "4666163159": "Nuclear Fanatic Facemask",
+  "Nuclear Fanatic Facemask": "4666163159",
+  "4666163162": "Nuclear Fanatic Hoodie",
+  "Nuclear Fanatic Hoodie": "4666163162",
+  "4666163161": "Nuclear Fanatic Pants",
+  "Nuclear Fanatic Pants": "4666163161",
+  "4666163073": "Nuclear Fanatic Chest Plate",
+  "Nuclear Fanatic Chest Plate": "4666163073",
 };
 
 const successfullRequests = {};
